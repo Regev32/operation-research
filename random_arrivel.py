@@ -1,6 +1,4 @@
 import random
-# random_boarding.py
-
 from Plane import Plane, plot_results
 
 def run_random_boarding_simulation(num_experiments=100):
@@ -11,7 +9,10 @@ def run_random_boarding_simulation(num_experiments=100):
         plane = Plane()
         plane.generate_passengers()
         plane.random_boarding()
-        random_times.append(plane.board_passengers())
+
+        # Simulate the bag loading process (randomly shuffled passengers)
+        total_time = plane.process_bag_loading()
+        random_times.append(total_time)
     
     # Plot results
     plot_results(random_times, label='Random', color='blue')

@@ -1,31 +1,12 @@
-# Plane.py
-
 import numpy as np
-import random
 import matplotlib.pyplot as plt
 
 class Passenger:
     def __init__(self, row, seat):
         self.row = row
         self.seat = seat
-        self.blocking_passengers = 0  # Number of passengers blocking the way
-        self.time_to_seat = 0         # Total time taken to sit down
-    
-    def store_bag_time(self):
-        """Time to store bag in the overhead compartment (exponentially distributed with a mean of 5 minutes)"""
-        return np.random.exponential(5)
-    
-    def pass_blockers_time(self):
-        """Time to pass blocking passengers (exponentially distributed with mean + 1 per blocking passenger)"""
-        mean_time = 1 + self.blocking_passengers
-        return np.random.exponential(mean_time)
-    
-    def settle_in_seat(self):
-        """Simulates the process of the passenger taking their seat."""
-        bag_time = self.store_bag_time()
-        passing_time = self.pass_blockers_time()
-        self.time_to_seat = bag_time + passing_time
-        return self.time_to_seat
+        self.time_to_load_bag = np.random.exponential(5)  # Time to store bag in overhead compartment
+        self.blocked = False  # Initially, the passenger is not blocked
 
 class Plane:
     def __init__(self):
@@ -38,49 +19,40 @@ class Plane:
         for row in range(1, 51):  # Rows 1 to 50
             for seat in seats:    # Seats A to F
                 passenger = Passenger(row, seat)
-                self.add_passenger(passenger)
+                self.passengers.append(passenger)
     
-    def add_passenger(self, passenger):
-        self.passengers.append(passenger)
-    
-    def is_left_side(self, seat):
-        """Check if the seat is on the left side of the aisle (A, B, C)."""
-        return seat in ['A', 'B', 'C']
+    def process_bag_loading(self):
+        """Simulates the bag loading process for all passengers, with multiple passengers loading at once if possible."""
+        time = 0
+        queue = self.passengers.copy()  # Start with the full list of passengers in the queue
 
-    def is_right_side(self, seat):
-        """Check if the seat is on the right side of the aisle (D, E, F)."""
-        return seat in ['D', 'E', 'F']
+        while queue:
+            # Find the passengers in the front who can load their bags (those not blocked by others)
+            ready_to_load = []
+            current_row = None
+            
+            for passenger in queue:
+                if current_row is None or passenger.row != current_row:
+                    ready_to_load.append(passenger)
+                    current_row = passenger.row
 
-    def board_passengers(self):
-        """Simulates the boarding process for all passengers."""
-        total_boarding_time = 0
-        self.seated_passengers = set()  # Reset seated passengers each time
+            # Find the max bag loading time from the passengers who are ready
+            if ready_to_load:
+                max_bag_time = max(p.time_to_load_bag for p in ready_to_load)
+
+                # Advance time by the max bag loading time (all ready passengers load in parallel)
+                time += max_bag_time
+
+                print(f"[DEBUG] Passengers loading bags in parallel, time += {max_bag_time:.2f} minutes")
+
+                # Remove passengers who have finished loading their bags from the queue
+                for passenger in ready_to_load:
+                    queue.remove(passenger)
+                    print(f"[DEBUG] Passenger in row {passenger.row}, seat {passenger.seat} finished loading bags")
+
+            # Move the rest of the queue forward (next passengers get into position)
         
-        for passenger in self.passengers:
-            # Determine if the current passenger is on the left or right side of the aisle
-            if self.is_left_side(passenger.seat):
-                # Check if there are any blocking passengers on the left side of the aisle (A, B, C)
-                blocking_passengers = sum(
-                    1 for p in self.seated_passengers 
-                    if p.row == passenger.row and self.is_left_side(p.seat) and p.seat < passenger.seat
-                )
-            elif self.is_right_side(passenger.seat):
-                # Check if there are any blocking passengers on the right side of the aisle (D, E, F)
-                blocking_passengers = sum(
-                    1 for p in self.seated_passengers 
-                    if p.row == passenger.row and self.is_right_side(p.seat) and p.seat < passenger.seat
-                )
-            
-            passenger.blocking_passengers = blocking_passengers
-            
-            # The passenger settles in their seat
-            time_to_seat = passenger.settle_in_seat()
-            total_boarding_time += time_to_seat
-            
-            # Mark this passenger as seated
-            self.seated_passengers.add(passenger)
-        
-        return total_boarding_time
+        return time
 
 def plot_results(times, label, color):
     """Helper function to plot the cumulative mean results."""
@@ -92,3 +64,19 @@ def plot_results(times, label, color):
     plt.ylabel('Mean Timer')
     plt.legend()
     plt.show()
+
+def simulate_bag_loading(num_experiments=100):
+    """Run 100 trials to simulate the time for passengers to load their bags."""
+    bag_loading_times = []
+
+    for _ in range(num_experiments):
+        plane = Plane()
+        plane.generate_passengers()
+        total_time = plane.process_bag_loading()
+        bag_loading_times.append(total_time)
+    
+    # Plot the cumulative mean results
+    plot_results(bag_loading_times, label="Bag Loading Time", color='blue')
+
+# Run the simulation and plot the results
+simulate_bag_loading(100)
